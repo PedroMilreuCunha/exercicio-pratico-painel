@@ -1,0 +1,232 @@
+---
+title: "Exemplo prático - Painel: Custos bancários (Greene)"
+subtitle: "Econometria I - prof. Dr. Cássio Besarria"
+author: "Pedro Milreu Cunha; Valber Gregory Barbosa Costa Bezerra Santos"
+date: "11/12/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Preâmbulo {#anchor}
+
+## Bibliotecas {#css_id}
+
+```{r echo = T, results = "hide", message=F, warning=F}
+library(dplyr)
+library(plm)
+library(stargazer)
+library(ggplot2)
+library(lmtest)
+library(sandwich)
+library(car)
+```
+
+## Comando para obter o conjunto "não-pertence" {#css_id}
+
+```{r}
+`%notin%` <- Negate(`%in%`)
+```
+
+## Função para colorir o texto {#css_id}
+
+```{r}
+colorize <- function(x, color) {
+  if (knitr::is_latex_output()) {
+    sprintf("\\textcolor{%s}{%s}", color, x)
+  } else if (knitr::is_html_output()) {
+    sprintf("<span style='color: %s;'>%s</span>", color, 
+      x)
+  } else x
+}
+```
+
+# Pré-processamento dos dados {#anchor}
+
+## Leitura dos dados {#css_id}
+
+```{r}
+dados <- read.csv("Dados/banks.csv")
+tail(dados)
+```
+
+<br />A função originalmente estimada^[Uma análise mais completa do banco de dados pode ser vista em [Banks Study](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=&ved=2ahUKEwi91MKLocbtAhUSH7kGHYV4DtYQFjAAegQIAhAC&url=http%3A%2F%2Fpages.stern.nyu.edu%2F~wgreene%2FFrontierModeling%2FEmpiricalStudies%2FBanks_Study.pdf&usg=AOvVaw3DiPNvzke-xWTLaEzVyAZD)
+] é uma translog com uma grande quantidade de termos. 
+Para melhorar a visualização, estimaremos uma função mais simples aqui. Dito isso,
+vamos retirar as variáveis não utilizadas da base de dados e criar uma variável de ano.
+
+```{r}
+dados <- dados[,c(1:5,56,67)]
+
+dados$Year <- with(dados, ifelse(T == 1, 1996, 
+                                 ifelse(T == 2, 1997,
+                                        ifelse( T == 3, 1998,
+                                                ifelse( T == 4, 1999, 2000)))))
+```
+
+<br />E agora vamos transformar as variáveis dos indivíduos (BANK) e do ano (Year) em variáveis categóricas:
+
+```{r}
+dados$BANK <- as.factor(dados$BANK)
+dados$Year <- as.factor(dados$Year)
+```
+
+## Descrição das variáveis  {#css_id}
+
+ - $C_{it}$: custo total de transformação de recursos fisícos e financeiros em empréstimos e 
+             investimentos;
+ - $W_{1it}$: preço do trabalho, salário médio por empregado;
+ - $W_{2it}$: preço do capital;
+ - $W_{3it}$: preço de fundos comprados; <!--gastos com juros-->
+ - $W_{4it}$: preço de depósitos com juros no total de contas de transação; <!--outro tipo de gastos com juros-->
+ - $T$: variável de tendência, com $T = 1,2,3,4,5$ para os anos $1996,1997,1998,1999,2000$, respectivamente;
+ - $BANK$: variável de identificação individual de cada banco;
+ - $Year$: variável que representa o ano.
+ 
+## Unicidade dos pares  {#css_id}
+
+É importante verificarmos se os pares (Banco-Ano) são únicos. Para isso, podemos utilizar o comando *any* junto a uma tabela de contingência:
+
+```{r}
+any(table(dados$BANK, dados$Year) !=1)
+```
+
+<br />Podemos verificar que há pelo menos algum banco que não satisfaz a unicidade requerida. Por simplicidade, vamos retirá-los (podemos usar o *table* para descobrir qual ou quais são as unidades problemáticas):
+
+```{r}
+dados <- subset(dados, BANK %notin% c(466,467,468,469,470,476))
+```
+
+# Análise inicial dos dados {#anchor}
+
+## Estatísticas descritivas  {#css_id}
+
+Aqui usamos a biblioteca *stargazer* para produzir tabelas bem formatadas:
+
+```{r results = "asis"}
+stargazer(dados, type = "html")
+```
+
+## Gráfico de dispersão  {#css_id}
+
+```{r echo = FALSE}
+ggplot(dados, aes(Year, C, colour = BANK)) +
+  geom_jitter(show.legend = FALSE)+
+  labs(x = "Ano", y = "Custo total")+
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank())
+```
+
+# Estimativas {#anchor}
+
+## Modelo pooled (ou OLS)  {#css_id}
+
+```{r}
+reg1 <- plm(C ~ W1 + W2 + W3 + W4 + T,
+            data = dados,
+            model = "pooling",
+            index = c("BANK", "Year"))
+```
+
+
+Podemos visualizar o resultado utilizando o *stargazer* novamente:
+
+```{r results = "asis"}
+stargazer(reg1, type = "html")
+```
+
+<br />Podemos observar a magnitude dos resíduos estimados também (a sombra vermelha indica o conjunto de pontos que estão a 2 desvios-padrão de distância ou menos de 0):
+
+```{r echo = FALSE}
+residuos <- reg1$residuals
+ggplot(data = dados, aes(x = BANK, y = residuos))+
+  geom_jitter(show.legend = FALSE, )+
+  labs(x = "Banco", y = "Resíduo estimado")+
+     geom_errorbar(mapping = aes(y = 0, ymin = mean(residuos) - 2*sd(residuos),
+                                                            ymax = mean(residuos) + 2*sd(residuos)),
+                                 size=0.5, color="red", width=.4, alpha = 0.025) +
+  theme(panel.grid = element_blank(), axis.title.x = element_blank(),
+        axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        panel.background = element_blank())
+```
+
+### Testando a presença de heterocedasticidade {.css_class}
+
+Utilizamos o teste de Breusch-Pagan para isso:
+
+```{r}
+bptest(reg1, studentize = F)
+```
+
+<br />`r colorize("Rejeitamos a hipótese nula de homocedasticidade", "red")`, indicando a necessidade de uma matriz de covariância robusta. Ela pode ser obtida utilizando o comando *coeftest* da biblioteca *lmtest* em conjunto com a biblioteca *sandwich*:
+
+```{r}
+coeftest(reg1, vcovHC)
+```
+
+<br />Veja que apesar da presença da heterocedasticidade, o uso de uma matriz de covariância robusta não alterou a significância de nenhuma das variáveis.
+
+## Modelo de efeitos fixos  {#css_id}
+
+```{r}
+reg2 <- plm(C ~ W1 + W2 + W3 + W4 + T,
+            data = dados,
+            model = "within",
+            index = c("BANK", "Year"))
+```
+
+<br />Comparando as duas estimativas (assumindo homocedasticidade, por simplicidade):
+
+```{r results = "asis"}
+stargazer(reg1, reg2, type = "html")
+```
+
+### OLS x Efeitos fixos {.css_class}
+
+Para isso, é feito um teste *F* de significância global para os coeficientes de efeitos fixos individuais.
+
+```{r}
+pFtest(reg2, reg1)
+```
+
+<br />`r colorize("Não rejeitamos a hipótese nula de que OLS é melhor que efeitos fixos", "blue")` (coeficientes não significativos). 
+
+## Modelo de efeitos aleatórios  {#css_id}
+
+```{r}
+reg3 <- plm(C ~ W1 + W2 + W3 + W4 + T,
+            data = dados,
+            model = "random",
+            index = c("BANK", "Year"))
+```
+
+
+Comparando as estimativas dos três modelos:
+
+```{r results = "asis"}
+stargazer(reg1, reg2, reg3, type = "html")
+```
+
+<br />De fato as estimativas são muito similares, o que é um indício de que não necessidade de fazer uso de técnicas de estimação para dados em painel.
+
+### OLS x Efeitos aleatórios {.css_class}
+
+Para isso testamos se há heterogeneidade entre as variâncias dos indivíduos, sendo a hipótese nula de que não há variabilidade (não há um 'efeito-painel').
+
+```{r}
+plmtest(reg1, type = "bp")
+```
+
+<br />`r colorize("Não rejeitamos a hipótese nula de que OLS é a melhor opção quando comparado ao modelo de efeitos aleatórios", "blue")`.
+
+### Efeitos fixos x Efeitos aleatórios {.css_class}
+
+Para isso utilizamos o teste de Hausman, que basicamente testa se os termos de erros são correlacionados com os regressores, com sua hipótese nula sendo de que não são. Se a rejeitarmos, temos indícios de que o modelo preferido é o de efeitos fixos.
+
+```{r}
+phtest(reg2, reg3)
+```
+
+<br />`r colorize("Não rejeitamos a nula de que o modelo de efeitos aleatórios é preferido", "blue")`.
