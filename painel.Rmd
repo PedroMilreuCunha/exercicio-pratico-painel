@@ -209,7 +209,7 @@ Comparando as estimativas dos três modelos:
 stargazer(reg1, reg2, reg3, type = "html")
 ```
 
-<br />De fato as estimativas são muito similares, o que é um indício de que não necessidade de fazer uso de técnicas de estimação para dados em painel.
+<br />De fato as estimativas são muito similares, o que é um indício de que não há necessidade de fazer uso de técnicas de estimação para dados em painel.
 
 ### OLS x Efeitos aleatórios {.css_class}
 
