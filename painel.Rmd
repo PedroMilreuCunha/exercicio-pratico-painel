@@ -105,12 +105,15 @@ dados <- subset(dados, BANK %notin% c(466,467,468,469,470,476))
 
 Aqui usamos a biblioteca *stargazer* para produzir tabelas bem formatadas:
 
+<div align="center">
 ```{r results = "asis"}
 stargazer(dados, type = "html")
 ```
+</div>
 
 ## Gráfico de dispersão  {#css_id}
 
+<div align="center">
 ```{r echo = FALSE}
 ggplot(dados, aes(Year, C, colour = BANK)) +
   geom_jitter(show.legend = FALSE)+
@@ -118,6 +121,7 @@ ggplot(dados, aes(Year, C, colour = BANK)) +
   theme(panel.grid = element_blank(),
         panel.background = element_blank())
 ```
+</div>
 
 # Estimativas {#anchor}
 
@@ -133,38 +137,52 @@ reg1 <- plm(C ~ W1 + W2 + W3 + W4 + T,
 
 Podemos visualizar o resultado utilizando o *stargazer* novamente:
 
+<div align="center">
 ```{r results = "asis"}
 stargazer(reg1, type = "html")
 ```
-
-<br />Podemos observar a magnitude dos resíduos estimados também (a sombra vermelha indica o conjunto de pontos que estão a 2 desvios-padrão de distância ou menos de 0):
-
-```{r echo = FALSE}
-residuos <- reg1$residuals
-ggplot(data = dados, aes(x = BANK, y = residuos))+
-  geom_jitter(show.legend = FALSE, )+
-  labs(x = "Banco", y = "Resíduo estimado")+
-     geom_errorbar(mapping = aes(y = 0, ymin = mean(residuos) - 2*sd(residuos),
-                                                            ymax = mean(residuos) + 2*sd(residuos)),
-                                 size=0.5, color="red", width=.4, alpha = 0.025) +
-  theme(panel.grid = element_blank(), axis.title.x = element_blank(),
-        axis.text.x = element_blank(), axis.ticks.x = element_blank(),
-        panel.background = element_blank())
-```
+</div>
 
 ### Testando a presença de heterocedasticidade {.css_class}
 
-Utilizamos o teste de Breusch-Pagan para isso:
+Inicialmente podemos fazer uma inspeção visual, fazendo um gráfico dos resíduos estimados em função dos valores estimados:
 
+<div align="center">
+```{r echo = FALSE}
+heterocedasticidade <- data.frame(estimados = as.numeric(fitted.values(reg1)),
+                                  residuos = as.numeric(reg1$residuals))
+ggplot(data = heterocedasticidade, aes(x = estimados, y = residuos))+
+  geom_jitter(show.legend = FALSE, alpha = 0.35)+
+  geom_segment(aes(x = 10, xend = 13,
+                   y = var(subset(heterocedasticidade, estimados <= 13 & estimados >= 10)$residuos),
+                   yend = var(subset(heterocedasticidade, estimados <= 13 & estimados >= 10)$residuos)),
+             colour = "red", linetype = "solid", size = 0.5)+
+  geom_segment(aes(x=13, xend = max(estimados),
+               y = var(subset(heterocedasticidade, estimados > 13)$residuos),
+               yend = var(subset(heterocedasticidade, estimados > 13)$residuos)),
+             colour = "blue", linetype = "solid", size = 0.5)+
+  labs(x = "Valor estimado", y = "Resíduo estimado")+
+  theme(panel.background = element_blank())
+```
+</div>
+
+De fato parece haver uma maior variabilidade nos resíduos quando os valores estimados da variável dependente se encontram entre $10$ e $13$ se comparado àqueles vistos quando os valores são maiores do que $13$ (as linhas horizontais representam as variâncias amostrais de cada grupo de resíduos).
+
+Para obtermos um resultado mais formal, utilizaremos o teste de Breusch-Pagan:
+
+<div align="center">
 ```{r}
 bptest(reg1, studentize = F)
 ```
+</div>
 
 <br />`r colorize("Rejeitamos a hipótese nula de homocedasticidade", "red")`, indicando a necessidade de uma matriz de covariância robusta. Ela pode ser obtida utilizando o comando *coeftest* da biblioteca *lmtest* em conjunto com a biblioteca *sandwich*:
 
+<div align="center">
 ```{r}
 coeftest(reg1, vcovHC)
 ```
+</div>
 
 <br />Veja que apesar da presença da heterocedasticidade, o uso de uma matriz de covariância robusta não alterou a significância de nenhuma das variáveis.
 
@@ -179,17 +197,21 @@ reg2 <- plm(C ~ W1 + W2 + W3 + W4 + T,
 
 <br />Comparando as duas estimativas (assumindo homocedasticidade, por simplicidade):
 
+<div align="center">
 ```{r results = "asis"}
 stargazer(reg1, reg2, type = "html")
 ```
+</div>
 
 ### OLS x Efeitos fixos {.css_class}
 
 Para isso, é feito um teste *F* de significância global para os coeficientes de efeitos fixos individuais.
 
+<div align="center">
 ```{r}
 pFtest(reg2, reg1)
 ```
+</div>
 
 <br />`r colorize("Não rejeitamos a hipótese nula de que OLS é melhor que efeitos fixos", "blue")` (coeficientes não significativos). 
 
@@ -205,9 +227,11 @@ reg3 <- plm(C ~ W1 + W2 + W3 + W4 + T,
 
 Comparando as estimativas dos três modelos:
 
+<div align="center">
 ```{r results = "asis"}
 stargazer(reg1, reg2, reg3, type = "html")
 ```
+</div>
 
 <br />De fato as estimativas são muito similares, o que é um indício de que não há necessidade de fazer uso de técnicas de estimação para dados em painel.
 
@@ -215,9 +239,11 @@ stargazer(reg1, reg2, reg3, type = "html")
 
 Para isso testamos se há heterogeneidade entre as variâncias dos indivíduos, sendo a hipótese nula de que não há variabilidade (não há um 'efeito-painel').
 
+<div align="center">
 ```{r}
 plmtest(reg1, type = "bp")
 ```
+</div>
 
 <br />`r colorize("Não rejeitamos a hipótese nula de que OLS é a melhor opção quando comparado ao modelo de efeitos aleatórios", "blue")`.
 
@@ -225,8 +251,10 @@ plmtest(reg1, type = "bp")
 
 Para isso utilizamos o teste de Hausman, que basicamente testa se os termos de erros são correlacionados com os regressores, com sua hipótese nula sendo de que não são. Se a rejeitarmos, temos indícios de que o modelo preferido é o de efeitos fixos.
 
+<div align="center">
 ```{r}
 phtest(reg2, reg3)
 ```
+</div>
 
 <br />`r colorize("Não rejeitamos a nula de que o modelo de efeitos aleatórios é preferido", "blue")`.
